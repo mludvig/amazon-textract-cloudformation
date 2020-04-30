@@ -1,0 +1,193 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Process S3 files with Amazon Textract
+
+Metadata:
+  Author: Michael Ludvig <mludvig@logix.net.nz>
+
+Parameters:
+  UploadPrefix:
+    Type: String
+    Description: Prefix in S3 bucket where files are uploaded
+    Default: upload
+
+Resources:
+  ##
+  ## === S3 Bucket ===
+  ##
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  BucketEvents:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      EnableLogFileValidation: False
+      IncludeGlobalServiceEvents: False
+      EventSelectors:
+      - DataResources:
+        - Type: AWS::S3::Object
+          Values:
+          - !Sub arn:aws:s3:::${Bucket}/${UploadPrefix}/
+        IncludeManagementEvents: False
+        ReadWriteType: WriteOnly
+      IsLogging: True
+      IsMultiRegionTrail: False
+      S3BucketName: !Ref Bucket
+
+  ##
+  ## === S3 Handler Lambda ===
+  ##
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+      Path: /
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: S3Access
+        PolicyDocument:
+          Statement:
+          - Action:
+            - s3:GetObject*
+            - s3:PutObject*
+            - s3:DeleteObject*
+            Effect: Allow
+            Resource: !Sub "arn:aws:s3:::${Bucket}/*"
+
+  Lambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      #Handler: lambda_main.lambda_handler
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.7
+      Timeout: 10
+      Code:
+        ZipFile: |
+          import json
+          def lambda_handler(event, context):
+            print(json.dumps(event))
+            return event
+      Environment:
+        Variables:
+          BUCKET: !Ref Bucket
+          PREFIX_IN: !Ref UploadPrefix
+          PREFIX_OUT: "output"
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Lambda}"
+
+  ##
+  ## === Step Function - State Machine ===
+  ##
+  StatesExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - !Sub states.${AWS::Region}.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: StatesExecutionPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource: "*"
+
+  StateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        !Sub |-
+            {
+              "Comment": "Use AWS Lambda to handle S3 Events",
+              "StartAt": "S3Handler",
+              "States": {
+                "S3Handler": {
+                  "Type": "Task",
+                  "Resource": "${Lambda.Arn}",
+                  "End": true
+                }
+              }
+            }
+      RoleArn: !GetAtt StatesExecutionRole.Arn
+
+  ##
+  ## === Event Rule triggering the Step Function ===
+  ##
+  EventStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: events.amazonaws.com
+      Path: /service-role/
+      Policies:
+      - PolicyName: StartStateMachineExecution
+        PolicyDocument:
+          Statement:
+          - Action:
+            - states:StartExecution
+            Effect: Allow
+            Resource: !Ref StateMachine
+
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: S3Event
+      EventPattern:
+        source:
+        - aws.s3
+        detail:
+          eventSource:
+          - s3.amazonaws.com
+          eventName:
+          - PutObject
+      State: ENABLED
+      Targets:
+        - Arn: !Ref StateMachine
+          Id: !GetAtt StateMachine.Name
+          RoleArn: !GetAtt EventStateMachineRole.Arn
+
+Outputs:
+  Bucket:
+    Value: !Ref Bucket
+
+  UploadPrefix:
+    Value: !Ref UploadPrefix
