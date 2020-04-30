@@ -64,6 +64,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      - arn:aws:iam::aws:policy/AmazonTextractFullAccess
       Policies:
       - PolicyName: S3Access
         PolicyDocument:
@@ -87,9 +88,8 @@ Resources:
       Code: lambda/index.py
       Environment:
         Variables:
-          BUCKET: !Ref Bucket
-          PREFIX_IN: !Ref UploadPrefix
-          PREFIX_OUT: "output"
+          OUTPUT_BUCKET: !Ref Bucket
+          OUTPUT_PREFIX: "output"
 
   LogGroup:
     Type: AWS::Logs::LogGroup
