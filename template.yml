@@ -85,15 +85,30 @@ Resources:
       Runtime: python3.8
       Timeout: 30
       Code: lambda/start_job.py
+
+  GetResultsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: get_results.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.8
+      Timeout: 30
+      Code: lambda/get_results.py
       Environment:
         Variables:
           OUTPUT_BUCKET: !Ref Bucket
           OUTPUT_PREFIX: "output"
 
-  LogGroup:
+  StartJobLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${Lambda}"
+      LogGroupName: !Sub "/aws/lambda/${StartJobLambda}"
+
+  GetResultsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetResultsLambda}"
 
   ##
   ## === Step Function - State Machine ===
@@ -132,7 +147,31 @@ Resources:
                 "StartJob": {
                   "Type": "Task",
                   "Resource": "${StartJobLambda.Arn}",
-                  "End": true
+                  "Next": "Wait"
+                },
+                "Wait": {
+                  "Type": "Wait",
+                  "Seconds": 5,
+                  "Next": "GetResults"
+                },
+                "GetResults": {
+                  "Type": "Task",
+                  "Resource": "${GetResultsLambda.Arn}",
+                  "Next": "IsJobDone"
+                },
+                "IsJobDone": {
+                  "Type": "Choice",
+                  "Choices": [
+                    {
+                      "Variable": "$.job_status",
+                      "StringEquals": "IN_PROGRESS",
+                      "Next": "Wait"
+                    }
+                  ],
+                  "Default": "Success"
+                },
+                "Success": {
+                  "Type": "Succeed"
                 }
               }
             }

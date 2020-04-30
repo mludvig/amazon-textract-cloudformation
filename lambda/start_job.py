@@ -2,6 +2,7 @@
 
 import os
 import json
+import time
 import boto3
 
 textract_client = boto3.client('textract')
@@ -36,6 +37,7 @@ def lambda_handler(event, context):
         "bucket_name": bucket_name,
         "object_name": object_name,
         "job_id": job_id,
+        "job_start_timestamp": time.time(),
     }
 
 if __name__ == "__main__":
