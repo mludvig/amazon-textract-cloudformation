@@ -76,16 +76,15 @@ Resources:
             Effect: Allow
             Resource: !Sub "arn:aws:s3:::${Bucket}/*"
 
-  Lambda:
+  StartJobLambda:
     Type: AWS::Lambda::Function
     Properties:
-      #Handler: lambda_main.lambda_handler
-      Handler: index.lambda_handler
+      Handler: start_job.lambda_handler
       MemorySize: 128
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.8
-      Timeout: 10
-      Code: lambda/index.py
+      Timeout: 30
+      Code: lambda/start_job.py
       Environment:
         Variables:
           OUTPUT_BUCKET: !Ref Bucket
@@ -127,12 +126,12 @@ Resources:
       DefinitionString:
         !Sub |-
             {
-              "Comment": "Use AWS Lambda to handle S3 Events",
-              "StartAt": "S3Handler",
+              "Comment": "Parse PDF files uploaded to S3 bucket",
+              "StartAt": "StartJob",
               "States": {
-                "S3Handler": {
+                "StartJob": {
                   "Type": "Task",
-                  "Resource": "${Lambda.Arn}",
+                  "Resource": "${StartJobLambda.Arn}",
                   "End": true
                 }
               }
