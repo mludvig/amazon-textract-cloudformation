@@ -2,6 +2,15 @@
 
 source config.sh
 
+LAMBDAS="lambda/start_job.py lambda/get_results.py"
+for LAMBDA in ${LAMBDAS}; do
+  echo "## ${LAMBDA}"
+  pylint ${LAMBDA} || true
+  pylint -E ${LAMBDA}
+done
+
+# ----
+
 TEMPLATE_FILE=$(mktemp /tmp/template-XXXXXXXX.yml)
 
 aws cloudformation package \
@@ -19,4 +28,5 @@ aws cloudformation deploy \
 rm -f ${TEMPLATE_FILE}
 
 BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} | jq -r '.Stacks[0].Outputs[]|select(.OutputKey=="Bucket").OutputValue')
-aws s3 cp template.yml s3://${BUCKET_NAME}/upload/template-$(date +%s).yml
+aws s3 cp bnz-test.pdf s3://${BUCKET_NAME}/upload/
+aws s3 cp invalid.pdf s3://${BUCKET_NAME}/upload/

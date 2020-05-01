@@ -166,12 +166,20 @@ Resources:
                       "Variable": "$.job_status",
                       "StringEquals": "IN_PROGRESS",
                       "Next": "Wait"
+                    },
+                    {
+                      "Variable": "$.job_status",
+                      "StringEquals": "SUCCEEDED",
+                      "Next": "Success"
                     }
                   ],
-                  "Default": "Success"
+                  "Default": "Failure"
                 },
                 "Success": {
                   "Type": "Succeed"
+                },
+                "Failure": {
+                  "Type": "Fail"
                 }
               }
             }
@@ -212,6 +220,7 @@ Resources:
           - s3.amazonaws.com
           eventName:
           - PutObject
+          - CompleteMultipartUpload
       State: ENABLED
       Targets:
         - Arn: !Ref StateMachine
