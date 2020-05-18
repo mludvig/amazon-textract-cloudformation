@@ -147,7 +147,13 @@ Resources:
                 "StartJob": {
                   "Type": "Task",
                   "Resource": "${StartJobLambda.Arn}",
-                  "Next": "Wait"
+                  "Next": "Wait",
+                  "Retry": [ {
+                    "ErrorEquals": [ "States.ALL" ],
+                    "IntervalSeconds": 15,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 5
+                  } ]
                 },
                 "Wait": {
                   "Type": "Wait",
@@ -157,7 +163,13 @@ Resources:
                 "GetResults": {
                   "Type": "Task",
                   "Resource": "${GetResultsLambda.Arn}",
-                  "Next": "IsJobDone"
+                  "Next": "IsJobDone",
+                  "Retry": [ {
+                    "ErrorEquals": [ "States.ALL" ],
+                    "IntervalSeconds": 15,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 5
+                  } ]
                 },
                 "IsJobDone": {
                   "Type": "Choice",
