@@ -75,11 +75,11 @@ def lambda_handler(event, context):
     s3_client.put_object(
         Bucket=output_bucket,
         Key=output_object,
-        Body=json.dumps(blocks),
+        Body=json.dumps({'Blocks': blocks}),
         ServerSideEncryption='AES256',
         ContentType='application/json',
     )
-    print(f"Blocks saved to: s3://{output_bucket}/{output_object}")
+    print(f"Blocks file saved to: s3://{output_bucket}/{output_object}")
     event['blocks'] = output_object
 
     return event
