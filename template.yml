@@ -7,33 +7,68 @@ Metadata:
   Author: Michael Ludvig <mludvig@logix.net.nz>
 
 Parameters:
+  Bucket:
+    Type: String
+    Description: S3 Bucket
+
   UploadPrefix:
     Type: String
     Description: Prefix in S3 bucket where files are uploaded
     Default: upload
 
+  OutputPrefix:
+    Type: String
+    Description: Prefix in S3 bucket where outputs are stored
+    Default: output
+
 Resources:
   ##
   ## === S3 Bucket ===
   ##
-  Bucket:
-    Type: AWS::S3::Bucket
+
+  #Bucket:
+  #  Type: AWS::S3::Bucket
+  #  Properties:
+  #    AccessControl: Private
+  #    PublicAccessBlockConfiguration:
+  #      BlockPublicAcls: True
+  #      BlockPublicPolicy: True
+  #      IgnorePublicAcls: True
+  #      RestrictPublicBuckets: True
+  #    BucketEncryption:
+  #      ServerSideEncryptionConfiguration:
+  #      - ServerSideEncryptionByDefault:
+  #          SSEAlgorithm: AES256
+  #    VersioningConfiguration:
+  #      Status: Enabled
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
     Properties:
-      AccessControl: Private
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-        BlockPublicPolicy: True
-        IgnorePublicAcls: True
-        RestrictPublicBuckets: True
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: AES256
-      VersioningConfiguration:
-        Status: Enabled
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: AWSCloudTrailAclCheck
+          Effect: Allow
+          Principal:
+            Service: cloudtrail.amazonaws.com
+          Action: s3:GetBucketAcl
+          Resource: !Sub "arn:aws:s3:::${Bucket}"
+        - Sid: AWSCloudTrailWrite
+          Effect: Allow
+          Principal:
+            Service: cloudtrail.amazonaws.com
+          Action: s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${Bucket}/AWSLogs/${AWS::AccountId}/*"
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
 
   BucketEvents:
     Type: AWS::CloudTrail::Trail
+    DependsOn:
+    - BucketPolicy
     Properties:
       EnableLogFileValidation: False
       IncludeGlobalServiceEvents: False
@@ -98,7 +133,7 @@ Resources:
       Environment:
         Variables:
           OUTPUT_BUCKET: !Ref Bucket
-          OUTPUT_PREFIX: "output"
+          OUTPUT_PREFIX: !Ref OutputPrefix
 
   StartJobLogGroup:
     Type: AWS::Logs::LogGroup
@@ -243,5 +278,8 @@ Outputs:
   Bucket:
     Value: !Ref Bucket
 
-  UploadPrefix:
-    Value: !Ref UploadPrefix
+  UploadUrl:
+    Value: !Sub "s3://${Bucket}/${UploadPrefix}"
+
+  OutputUrl:
+    Value: !Sub "s3://${Bucket}/${OutputPrefix}"
