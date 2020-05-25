@@ -43,7 +43,8 @@ TEMPLATE_FILE=$(mktemp /tmp/template-XXXXXXXX.yml)
 aws cloudformation package \
 	--template-file template.yml \
 	--output-template-file ${TEMPLATE_FILE} \
-	--s3-bucket ${DEPLOYMENT_BUCKET}
+	--s3-bucket ${DEPLOYMENT_BUCKET} \
+	--s3-prefix "deploy"
 
 aws cloudformation deploy \
 	--template-file ${TEMPLATE_FILE} \
